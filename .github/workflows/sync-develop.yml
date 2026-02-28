@@ -22,6 +22,14 @@ jobs:
 
       - name: Merge main into develop
         run: |
-          git checkout develop
-          git merge origin/main --no-edit
+          git fetch origin main develop || true
+
+          if git show-ref --verify --quiet refs/remotes/origin/develop; then
+            git checkout -B develop origin/develop
+            git merge origin/main --no-edit
+          else
+            echo "Remote develop branch does not exist. Creating from origin/main."
+            git checkout -B develop origin/main
+          fi
+
           git push origin develop
