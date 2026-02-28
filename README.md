@@ -77,3 +77,10 @@ Release Please remains the source of truth for:
 - canonical `CHANGELOG.md` updates
 
 The `release-notes` and `commit` skills improve input quality and narrative clarity, but do not replace Release Please automation.
+
+## PR flow
+
+- Create feature branches from `develop`
+- Open PRs into `develop` for day-to-day work
+- Promote `develop` to `main` with a release PR
+- `sync-develop` keeps `develop` aligned after `main` merges
