@@ -1,8 +1,8 @@
 ## Summary
-- 
+- [ ]
 
 ## Why
-- 
+- [ ]
 
 ## Testing
 - [ ] Local checks run
