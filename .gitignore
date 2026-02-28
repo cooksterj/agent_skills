@@ -1,0 +1,13 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+
+# Installed skill targets (in consumer repos)
+/.claude/
+/.agents/
+/.opencode/

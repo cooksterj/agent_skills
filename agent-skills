@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC_DIR="${SCRIPT_DIR}/src"
+
+TARGET_CLAUDE=".claude/skills"
+TARGET_CODEX=".agents/skills"
+TARGET_OPENCODE=".opencode/skills"
+
+available_skills() {
+    for skill in "${SRC_DIR}"/*/; do
+        [ -d "$skill" ] && basename "$skill"
+    done
+}
+
+skill_exists() {
+    [ -d "${SRC_DIR}/$1" ]
+}
+
+target_dir() {
+    case "$1" in
+        claude) echo "${TARGET_CLAUDE}" ;;
+        codex) echo "${TARGET_CODEX}" ;;
+        opencode) echo "${TARGET_OPENCODE}" ;;
+        *)
+            echo "Error: unknown target '$1'" >&2
+            exit 1
+            ;;
+    esac
+}
+
+parse_target_and_args() {
+    TARGET="all"
+    POSITIONAL=()
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --target)
+                if [ $# -lt 2 ]; then
+                    echo "Error: --target requires a value" >&2
+                    exit 1
+                fi
+                TARGET="$2"
+                shift 2
+                ;;
+            --target=*)
+                TARGET="${1#*=}"
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                POSITIONAL+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    case "$TARGET" in
+        all|claude|codex|opencode) ;;
+        *)
+            echo "Error: invalid target '${TARGET}'. Use: claude, codex, opencode, or all" >&2
+            exit 1
+            ;;
+    esac
+
+    ARGS=()
+    if [ ${#POSITIONAL[@]} -gt 0 ]; then
+        ARGS=("${POSITIONAL[@]}")
+    fi
+}
+
+selected_targets() {
+    case "$TARGET" in
+        all) echo "claude codex opencode" ;;
+        *) echo "$TARGET" ;;
+    esac
+}
+
+validate_skills() {
+    local skill
+    for skill in "$@"; do
+        if ! skill_exists "$skill"; then
+            echo "Error: '${skill}' is not an available skill"
+            echo "Run 'agent-skills list' to see available skills"
+            exit 1
+        fi
+    done
+}
+
+usage() {
+    cat <<EOF
+Usage: agent-skills <command> [--target <target>] [skill-name ...]
+
+Commands:
+  install [skill ...]    Copy skills into target skill directories (default: all skills)
+  uninstall <skill ...>  Remove skills from target skill directories
+  list                   Show available skills and install status
+  update [skill ...]     Re-copy latest skills (default: all installed in target)
+
+Targets:
+  claude    -> .claude/skills/
+  codex     -> .agents/skills/
+  opencode  -> .opencode/skills/
+  all       -> all of the above (default)
+
+Run from the root of the target repository.
+
+Setup:
+  Add this to your shell profile (~/.zshrc or ~/.bashrc):
+
+    export PATH="\$PATH:${SCRIPT_DIR}"
+EOF
+}
+
+cmd_install() {
+    parse_target_and_args "$@"
+
+    local skills=()
+    local skill
+    local target
+    local dir
+
+    if [ ${#ARGS[@]} -eq 0 ]; then
+        while IFS= read -r s; do skills+=("$s"); done < <(available_skills)
+    else
+        skills=("${ARGS[@]}")
+    fi
+
+    validate_skills "${skills[@]}"
+
+    for target in $(selected_targets); do
+        dir="$(target_dir "$target")"
+        mkdir -p "$dir"
+
+        for skill in "${skills[@]}"; do
+            if [ -d "${dir}/${skill}" ]; then
+                echo "  update  ${target}/${skill}"
+                rm -rf "${dir}/${skill}"
+            else
+                echo "  install ${target}/${skill}"
+            fi
+            cp -R "${SRC_DIR}/${skill}" "${dir}/${skill}"
+        done
+    done
+
+    echo ""
+    echo "Installed ${#skills[@]} skill(s) for target '${TARGET}'"
+}
+
+cmd_uninstall() {
+    parse_target_and_args "$@"
+
+    if [ ${#ARGS[@]} -eq 0 ]; then
+        echo "Error: specify at least one skill to uninstall"
+        exit 1
+    fi
+
+    local skill
+    local target
+    local dir
+    for target in $(selected_targets); do
+        dir="$(target_dir "$target")"
+        for skill in "${ARGS[@]}"; do
+            if [ -d "${dir}/${skill}" ]; then
+                rm -rf "${dir}/${skill}"
+                echo "  remove  ${target}/${skill}"
+            else
+                echo "  skip    ${target}/${skill} (not installed)"
+            fi
+        done
+    done
+}
+
+cmd_list() {
+    parse_target_and_args "$@"
+
+    local skill
+    if [ "$TARGET" = "all" ]; then
+        printf "%-20s %-10s %-10s %-10s\n" "SKILL" "CLAUDE" "CODEX" "OPENCODE"
+        printf "%-20s %-10s %-10s %-10s\n" "-----" "------" "-----" "--------"
+        for skill in $(available_skills); do
+            local c="-"
+            local x="-"
+            local o="-"
+            [ -d "${TARGET_CLAUDE}/${skill}" ] && c="installed"
+            [ -d "${TARGET_CODEX}/${skill}" ] && x="installed"
+            [ -d "${TARGET_OPENCODE}/${skill}" ] && o="installed"
+            printf "%-20s %-10s %-10s %-10s\n" "$skill" "$c" "$x" "$o"
+        done
+    else
+        local dir
+        dir="$(target_dir "$TARGET")"
+        printf "%-20s %s\n" "SKILL" "STATUS"
+        printf "%-20s %s\n" "-----" "------"
+        for skill in $(available_skills); do
+            if [ -d "${dir}/${skill}" ]; then
+                printf "%-20s %s\n" "$skill" "installed"
+            else
+                printf "%-20s %s\n" "$skill" "-"
+            fi
+        done
+    fi
+}
+
+cmd_update() {
+    parse_target_and_args "$@"
+
+    local skills=()
+    local target
+    local dir
+
+    if [ ${#ARGS[@]} -gt 0 ]; then
+        skills=("${ARGS[@]}")
+        validate_skills "${skills[@]}"
+    else
+        for target in $(selected_targets); do
+            dir="$(target_dir "$target")"
+            if [ -d "$dir" ]; then
+                for skill_dir in "$dir"/*/; do
+                    [ -d "$skill_dir" ] || continue
+                    skills+=("$(basename "$skill_dir")")
+                done
+            fi
+        done
+
+        if [ ${#skills[@]} -eq 0 ]; then
+            echo "No skills currently installed for target '${TARGET}'. Use 'agent-skills install' first."
+            exit 0
+        fi
+
+        local uniq=()
+        local seen=""
+        local s
+        for s in "${skills[@]}"; do
+            case " $seen " in
+                *" $s "*) ;;
+                *)
+                    uniq+=("$s")
+                    seen+=" $s"
+                    ;;
+            esac
+        done
+        skills=("${uniq[@]}")
+    fi
+
+    cmd_install --target "$TARGET" "${skills[@]}"
+}
+
+if [ $# -eq 0 ]; then
+    usage
+    exit 1
+fi
+
+COMMAND="$1"
+shift
+
+case "$COMMAND" in
+    install)   cmd_install "$@" ;;
+    uninstall) cmd_uninstall "$@" ;;
+    list)      cmd_list "$@" ;;
+    update)    cmd_update "$@" ;;
+    help|-h|--help) usage ;;
+    *)
+        echo "Unknown command: ${COMMAND}"
+        echo ""
+        usage
+        exit 1
+        ;;
+esac
