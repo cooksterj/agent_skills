@@ -60,6 +60,9 @@ agent-skills uninstall --target claude commit
 - `commit`: Conventional Commits + Release Please commit workflow
 - `jira-ticket`: standardized Jira ticket generation (epic/story/task/sub-task)
 - `python-scaffold`: Python scaffolding with docstring/test conventions
+- `rust-scaffold`: Rust scaffolding with rustdoc, derives, ownership patterns, and test coverage
+- `rust-project-init`: Rust project/workspace setup with clippy, rustfmt, and CI-ready config
+- `rust-error-type`: Rust error types using thiserror/anyhow with conversions and tests
 
 ### Added
 
