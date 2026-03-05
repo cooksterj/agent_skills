@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/cooksterj/agent_skills/compare/v0.1.0...v0.2.0) (2026-03-05)
+
+
+### Features
+
+* add rust-scaffold, rust-project-init, and rust-error-type skills ([013cb08](https://github.com/cooksterj/agent_skills/commit/013cb08654ed8e9665fcab1a8e7ca01d1c2190fa))
+
 ## 0.1.0 (2026-02-28)
 
 
